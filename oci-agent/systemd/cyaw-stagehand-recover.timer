@@ -1,0 +1,12 @@
+[Unit]
+Description=Check Stagehand browser after boot and every five minutes
+
+[Timer]
+OnBootSec=1min
+OnUnitInactiveSec=5min
+AccuracySec=30s
+Persistent=true
+Unit=cyaw-stagehand-recover.service
+
+[Install]
+WantedBy=timers.target
