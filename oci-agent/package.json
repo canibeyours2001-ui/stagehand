@@ -1,0 +1,19 @@
+{
+  "name": "cyaw-stagehand-oci",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bash start-browser.sh",
+    "status": "node cli.mjs status",
+    "tabs": "node cli.mjs tabs",
+    "check": "npm audit --omit=dev"
+  },
+  "dependencies": {
+    "@browserbasehq/stagehand": "4.3.0",
+    "zod": "4.6.7"
+  },
+  "overrides": {
+    "zod": "4.6.7"
+  }
+}
