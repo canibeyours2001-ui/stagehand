@@ -14,9 +14,10 @@ if(command==="help"){
  process.exit(0);
 }
 let browser;
+let stagehand;
 try {
  browser=await localBrowser.connect({cdpUrl:"http://127.0.0.1:9228"});
- const stagehand=await Stagehand.create({browser,...(apiKey?{model:{modelName,apiKey}}:{})});
+ stagehand=await Stagehand.create({browser,...(apiKey?{model:{modelName,apiKey}}:{})});
  const pages=await browser.context.pages();
  if(command==="status"){
    console.log(JSON.stringify({ok:true,stagehand:"4.3.0",modelConfigured:Boolean(apiKey),tabs:pages.length,cdp:"localhost:9228"},null,2));
@@ -46,10 +47,10 @@ try {
    const out=await stagehand.extract(args.join(" "),z.object({answer:z.string()}));
    console.log(JSON.stringify(out.data,null,2));
  } else {throw new Error("Unknown command: "+command);}
- await stagehand.close();
 }catch(e){
  console.error("STAGEHAND_ERROR:",e.message||String(e));
  process.exitCode=1;
 }finally{
- if(browser) await browser.disconnect().catch(()=>{});
+ if(stagehand) await stagehand.close().catch(()=>{});
+ if(browser && typeof browser.disconnect==="function") await browser.disconnect().catch(()=>{});
 }
