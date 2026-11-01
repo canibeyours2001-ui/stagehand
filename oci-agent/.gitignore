@@ -1,0 +1,7 @@
+node_modules/
+.env
+browser-data/
+logs/
+Xauthority
+smoke-profile/
+*.pid
