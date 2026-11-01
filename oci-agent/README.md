@@ -1,47 +1,78 @@
-# Cyaw Stagehand — OCI ARM64 browser agent
+# Cyaw Stagehand on OCI ARM64
 
-Self-hosted Stagehand v4.3.0, using Chrome for Testing, persistent browser-data, a private noVNC viewer, and a localhost-only Chrome DevTools port. No Browserbase account is required.
+Standalone Stagehand v4.3.0 runner for the existing OCI Ubuntu ARM64 VPS, without building the entire Stagehand monorepo. Chrome for Testing runs in its own Xvfb display with persistent cookies. This setup does not depend on a Browserbase account.
 
-## Server installation
-Run on the OCI ARM server (not on the 1 GB micro):
+## Deployment verified on 2026-11-02
+
+- Browser launch, localhost CDP, private noVNC viewer: PASS.
+- Stagehand attach, status, tabs, and opening new tabs: PASS.
+- NPM production dependency audit: zero reported vulnerabilities after a Zod override.
+- User systemd recovery timer enabled and active; runs every five minutes and after boot.
+- Existing OmniRoute gateway model completion: PASS on a short prompt.
+- Stagehand natural-language `observe` through OmniRoute: NOT YET WORKING; two models returned HTTP 502 for the longer request.
+- Selector fallback (`inspect`, `click`, `fill`) added to the fork; the last server sync is unverified due to a temporary Desktop Commander connection issue.
+
+## Private browser login
+
+Only the account owner should sign in manually. From a Mac on the same Tailscale network:
+
+```bash
+ssh -N -L 6081:127.0.0.1:6081 ubuntu@100.118.169.81
+```
+
+Leave this tunnel running. Open http://127.0.0.1:6081/vnc.html and click Connect. Use Chrome normally to sign in. Session cookies stay in `~/stagehand-oci/browser-data` (permissions 0700).
+
+**Never expose port 5901, 6081, or 9228 to the public internet.** The viewer uses SSH for access control, not an independent password. Do not enter passwords via CLI scripts or commit any credentials.
+
+## Server setup
+
+Run once, or to redeploy from the fork:
+
 ```bash
 mkdir -p ~/stagehand-oci
-# Copy files from this directory to ~/stagehand-oci
+# Copy the files in oci-agent/ here
 cd ~/stagehand-oci
 npm install
 bash start-browser.sh
-npm run status
-node cli.mjs tabs
-```
-
-## Manual login — only done by the account owner
-From your Mac, SSH-forward the PRIVATE viewer; keep this terminal open:
-```bash
-ssh -N -L 6081:127.0.0.1:6081 ubuntu@YOUR_OCI_VPS_HOST
-```
-Then visit http://127.0.0.1:6081/vnc.html and press Connect. Browse to your sites in the Chrome window and sign in manually. Cookies remain in `~/stagehand-oci/browser-data/`. **Do not expose TCP 6081, 5901, or 9228 publicly.** The localhost-only viewer intentionally has no independent password, since SSH protects it.
-
-## Use after login
-```bash
-cd ~/stagehand-oci
 node cli.mjs status
 node cli.mjs tabs
 node cli.mjs open https://example.com
 ```
-For AI actions, provide your own supported model provider key in the server's environment (never commit secrets):
-```bash
-export STAGEHAND_MODEL='google/gemini-2.5-flash'
-export STAGEHAND_API_KEY='YOUR_PROVIDER_API_KEY'
-node cli.mjs act "click the settings button"
-node cli.mjs observe "find the account menu"
-node cli.mjs extract "What is the current page about?"
-```
-The model is not needed for deterministic navigation or tabs. Stagehand's local browser does not get free model inference from the Browserbase Gateway. Prefer short actions, and verify destructive or externally visible actions before using automation.
 
-## Operational boundaries
-- Dedicated X11 display :11, VNC TCP 5901, private web viewer 6081, and CDP 9228.
-- Existing :10/5900/6080 viewer is deliberately untouched.
-- Chrome profile persists, but restarting the VPS may require rerunning `bash start-browser.sh`.
-- VNC and CDP are bound to loopback and are not exposed to the public network.
-- The code works from this subdirectory without building the enormous Stagehand monorepo.
-- Run `npm audit --omit=dev` to verify the Zod security override.
+The server uses its existing Chrome for Testing executable, Xvfb, x11vnc, websockify, Node.js, and npm. The dedicated ports are display `:11`, VNC `127.0.0.1:5901`, private web viewer `127.0.0.1:6081`, and CDP `127.0.0.1:9228`. Other browser sessions on `:10` are untouched.
+
+## Browser commands
+
+```bash
+cd ~/stagehand-oci
+node cli.mjs tabs
+node cli.mjs open https://example.org
+node cli.mjs inspect
+node cli.mjs click 'a'
+node cli.mjs fill 'input[name=q]' 'some text'
+STAGEHAND_TAB=0 node cli.mjs inspect
+```
+
+`STAGEHAND_TAB` chooses the index from `tabs`. Without it, deterministic commands use the last tab.
+
+AI commands (require a healthy model provider):
+```bash
+node cli.mjs observe "find the settings button"
+node cli.mjs act "click the settings button"
+node cli.mjs extract "Summarize this page"
+```
+
+The CLI can reuse the existing localhost OmniRoute gateway by reading `HERMES_CUSTOM_LOCALHOST_3001_API_KEY` from the private `~/.hermes/.env` file. No secret is stored in the fork. OmniRoute inference may consume gateway/provider quota. If OmniRoute is unavailable, a supported direct model key can be supplied through `STAGEHAND_API_KEY` and `STAGEHAND_MODEL`.
+
+## Automatic recovery
+
+Copy `systemd/cyaw-stagehand-recover.service` and `systemd/cyaw-stagehand-recover.timer` into `~/.config/systemd/user/`, then run:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now cyaw-stagehand-recover.timer
+```
+
+With user lingering enabled, the timer checks every five minutes and after reboot. Browser sessions are stored on disk, but websites may require periodic login renewals.
+
+Do not automate payments, posting, sending messages, or account changes without explicit approval of the action.
