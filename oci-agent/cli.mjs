@@ -52,5 +52,7 @@ try {
  process.exitCode=1;
 }finally{
  if(stagehand) await stagehand.close().catch(()=>{});
- if(browser && typeof browser.disconnect==="function") await browser.disconnect().catch(()=>{});
+ // Stagehand 4.3.0 has no browser.disconnect() on a CDP-attached handle.
+ // Exit this one-shot CLI to release its transport without closing Chrome.
 }
+process.exit(process.exitCode || 0);
