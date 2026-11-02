@@ -1,9 +1,14 @@
 [Unit]
-Description=Ensure Cyaw Stagehand private browser is running
+Description=Stagehand persistent private Chrome, VNC and noVNC stack
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-Type=oneshot
-ExecStart=/bin/bash /home/ubuntu/stagehand-oci/start-browser.sh
-TimeoutStartSec=90
+Type=simple
+ExecStart=/bin/bash /home/ubuntu/stagehand-oci/monitor.sh
+Restart=always
+RestartSec=5
+KillMode=control-group
+
+[Install]
+WantedBy=default.target
