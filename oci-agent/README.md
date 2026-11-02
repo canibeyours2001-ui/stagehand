@@ -9,8 +9,10 @@ Standalone Stagehand v4.3.0 runner for the existing OCI Ubuntu ARM64 VPS, withou
 - NPM production dependency audit: zero reported vulnerabilities after a Zod override.
 - User systemd recovery timer enabled and active; runs every five minutes and after boot.
 - Existing OmniRoute gateway model completion: PASS on a short prompt.
-- Stagehand natural-language `observe` through OmniRoute: NOT YET WORKING; two models returned HTTP 502 for the longer request.
-- Selector fallback (`inspect`, `click`, `fill`) added to the fork; the last server sync is unverified due to a temporary Desktop Commander connection issue.
+- AI extraction: PASS using OmniRoute `auto` routing (`Example Domain` returned correctly). Some individual free model routes are rate-limited or return HTTP 502.
+- AI `observe` finds the correct `Learn more` link: PASS. Natural-language `act` uses Stagehand `observe` with Playwright CDP to click reliably: PASS, verified by navigation to IANA.
+- Native Stagehand v4 `locator.click()` timed out in this environment, so the OCI CLI uses `playwright-core` for `click`, `fill`, and supported `act` operations. Both files are synced to the live VPS.
+- `npm audit --omit=dev`: zero vulnerabilities reported on the live runtime (2026-11-02).
 
 ## Private browser login
 
@@ -55,14 +57,14 @@ STAGEHAND_TAB=0 node cli.mjs inspect
 
 `STAGEHAND_TAB` chooses the index from `tabs`. Without it, deterministic commands use the last tab.
 
-AI commands (require a healthy model provider):
+AI commands (using the existing private OmniRoute gateway and `auto` routing; some models may be temporarily rate-limited):
 ```bash
 node cli.mjs observe "find the settings button"
 node cli.mjs act "click the settings button"
 node cli.mjs extract "Summarize this page"
 ```
 
-The CLI can reuse the existing localhost OmniRoute gateway by reading `HERMES_CUSTOM_LOCALHOST_3001_API_KEY` from the private `~/.hermes/.env` file. No secret is stored in the fork. OmniRoute inference may consume gateway/provider quota. If OmniRoute is unavailable, a supported direct model key can be supplied through `STAGEHAND_API_KEY` and `STAGEHAND_MODEL`.
+The CLI defaults to `STAGEHAND_OMNI_MODEL=auto` and can reuse the existing localhost OmniRoute gateway by reading `HERMES_CUSTOM_LOCALHOST_3001_API_KEY` from the private `~/.hermes/.env` file. No secret is stored in the fork. OmniRoute inference may consume gateway/provider quota. If OmniRoute is unavailable, a supported direct model key can be supplied through `STAGEHAND_API_KEY` and `STAGEHAND_MODEL`.
 
 ## Automatic recovery
 
