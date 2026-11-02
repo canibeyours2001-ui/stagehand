@@ -7,7 +7,7 @@ Standalone Stagehand v4.3.0 runner for the existing OCI Ubuntu ARM64 VPS, withou
 - Browser launch, localhost CDP, private noVNC viewer: PASS.
 - Stagehand attach, status, tabs, and opening new tabs: PASS.
 - NPM production dependency audit: zero reported vulnerabilities after a Zod override.
-- User systemd recovery timer enabled and active; runs every five minutes and after boot.
+- Persistent systemd user service enabled and active; replaces the faulty five-minute oneshot timer and monitors Chrome/VNC every 20 seconds.
 - Existing OmniRoute gateway model completion: PASS on a short prompt.
 - AI extraction: PASS using OmniRoute `auto` routing (`Example Domain` returned correctly). Some individual free model routes are rate-limited or return HTTP 502.
 - AI `observe` finds the correct `Learn more` link: PASS. Natural-language `act` uses Stagehand `observe` with Playwright CDP to click reliably: PASS, verified by navigation to IANA.
@@ -68,13 +68,16 @@ The CLI defaults to `STAGEHAND_OMNI_MODEL=auto` and can reuse the existing local
 
 ## Automatic recovery
 
-Copy `systemd/cyaw-stagehand-recover.service` and `systemd/cyaw-stagehand-recover.timer` into `~/.config/systemd/user/`, then run:
+Copy `monitor.sh` into `~/stagehand-oci/` and `systemd/cyaw-stagehand-recover.service` into `~/.config/systemd/user/`. Disable the old **oneshot recovery timer**, which terminates its own VNC and Chrome child processes when systemd cleans up, then enable the persistent service:
 
 ```bash
+chmod 700 ~/stagehand-oci/monitor.sh
+systemctl --user disable --now cyaw-stagehand-recover.timer
 systemctl --user daemon-reload
-systemctl --user enable --now cyaw-stagehand-recover.timer
+systemctl --user enable --now cyaw-stagehand-recover.service
+systemctl --user status cyaw-stagehand-recover.service
 ```
 
-With user lingering enabled, the timer checks every five minutes and after reboot. Browser sessions are stored on disk, but websites may require periodic login renewals.
+With user lingering enabled, this always-on service starts at boot, checks browser health every 20 seconds, and leaves its Chrome and VNC child processes alive. The VNC viewer is still localhost-only, accessed via SSH tunnel. Tested: HTTP WebSocket upgrade `101` and VNC `RFB 003.008` greeting. Browser cookies persist on disk, but websites may require login renewals.
 
 Do not automate payments, posting, sending messages, or account changes without explicit approval of the action.
