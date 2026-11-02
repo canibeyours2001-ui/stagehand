@@ -1,4 +1,5 @@
 import {localBrowser,Stagehand} from "@browserbasehq/stagehand";
+import { chromium } from "playwright-core";
 import {z} from "zod";
 import {readFileSync} from "node:fs";
 import {homedir} from "node:os";
@@ -25,7 +26,7 @@ async function omniGenerate(params){
  if(process.env.STAGEHAND_OMNI_DIAG==="1") throw new Error("OmniRoute prompt size: "+JSON.stringify(messages).length+" characters; schema: "+schema.length);
  const response=await fetch("http://127.0.0.1:3001/v1/chat/completions",{
    method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+omniKey},
-   body:JSON.stringify({model:process.env.STAGEHAND_OMNI_MODEL||"glm-5.3-flash",messages,temperature:0,max_tokens:2500}),
+   body:JSON.stringify({model:process.env.STAGEHAND_OMNI_MODEL||"auto",messages,temperature:0,max_tokens:2500}),
    signal:AbortSignal.timeout(90000)
  });
  if(!response.ok) throw new Error("OmniRoute model request failed with HTTP "+response.status);
@@ -72,16 +73,38 @@ try {
    console.log(JSON.stringify(result,null,2));
  } else if(command==="click"){
    if(!args[0]) throw new Error("Provide a CSS selector");
-   await selected.locator(args[0]).click();
-   console.log("CLICK_OK",args[0]);
+   const pw=await chromium.connectOverCDP("http://127.0.0.1:9228");
+   try {
+     const pp=pw.contexts()[0].pages();
+     const target=pp[Math.min(Math.max(Number(process.env.STAGEHAND_TAB||pp.length-1),0),pp.length-1)];
+     await target.locator(args[0]).click({timeout:12000});
+     console.log("CLICK_OK",args[0],"URL",target.url());
+   } finally {await pw.close();}
  } else if(command==="fill"){
    if(args.length<2) throw new Error("Usage: fill CSS_SELECTOR TEXT (never use this for passwords)");
-   await selected.locator(args[0]).fill(args.slice(1).join(" "));
-   console.log("FILL_OK",args[0]);
+   if(/password|passcode|otp|secret|token/i.test(args[0])) throw new Error("Enter credentials manually in the private browser viewer");
+   const pw=await chromium.connectOverCDP("http://127.0.0.1:9228");
+   try {
+     const pp=pw.contexts()[0].pages();
+     const target=pp[Math.min(Math.max(Number(process.env.STAGEHAND_TAB||pp.length-1),0),pp.length-1)];
+     await target.locator(args[0]).fill(args.slice(1).join(" "),{timeout:12000});
+     console.log("FILL_OK",args[0]);
+   } finally {await pw.close();}
  } else if(command==="act"){
    if(!args.length) throw new Error("Provide a single-action instruction");
-   const out=await stagehand.act(args.join(" "));
-   console.log(JSON.stringify(out.data,null,2));
+   if(/password|passcode|otp|two.factor|2fa|login|log in|sign in/i.test(args.join(" "))) throw new Error("Account sign-in and credentials must be entered manually in the private browser viewer");
+   const found=(await stagehand.observe(args.join(" "))).data;
+   if(!Array.isArray(found)||found.length!==1) throw new Error("Expected one unambiguous action; found "+(found?.length??0));
+   const item=found[0];
+   const pw=await chromium.connectOverCDP("http://127.0.0.1:9228");
+   try {
+     const pp=pw.contexts()[0].pages();
+     const target=pp[Math.min(Math.max(Number(process.env.STAGEHAND_TAB||pp.length-1),0),pp.length-1)];
+     if(item.method==="click") await target.locator(item.selector).click({timeout:12000});
+     else if(item.method==="fill" && typeof item.arguments?.[0]==="string") await target.locator(item.selector).fill(item.arguments[0],{timeout:12000});
+     else throw new Error("Unsupported AI action method: "+item.method+". Use click/fill selectors instead.");
+     console.log(JSON.stringify({ok:true,action:item.method,selector:item.selector,url:target.url()}));
+   } finally {await pw.close();}
  } else if(command==="observe"){
    if(!args.length) throw new Error("Provide an observation instruction");
    const out=await stagehand.observe(args.join(" "));
